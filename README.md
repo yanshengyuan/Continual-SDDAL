@@ -92,7 +92,7 @@ bash Neural_Experimental_Design.sh <beamshape> <lr> <start_round> <end_round> <g
 
   `bash SDDAL.sh rec 9999 9999 false 1 200 0 5 9999 true`
    
-   - (2) Train a Quantile UNet model on the 1000 initial samples.
+   - (2) Train a Quantile UNet-T model on the 1000 initial samples.
 
    - (3) SDDAL uses the PBF/LB-M beam shaping simulation and trained Quantile UNet-T for uncertainty sampling to generate 1000 active learned samples.
 
