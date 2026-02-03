@@ -147,4 +147,11 @@ python3 train_unet.py --data Design_rec --batch_size 2 --gpu 1 --seed 123 --pth_
 ```text
 cd ./rec_result/
 ```
-- 4, Inside the result folder you will see a Python script named "FRCM.py", please create a new folder named "diff" in the current directory, and then run the following command:
+- 4, Inside the result folder you will see a Python script named "FRCM.py", please create a new folder named "diff" in the current directory, and then run the following command then the phase prediction accuracy metrics MAE, SSIM, FRCM will be written in the generated evaluation.txt, you will also have KDE distribution of the metrics across the test set:
+```text
+nohup python3 FRCM.py > evaluation.txt 2>&1 &
+```
+- 5, Now switch back to the root directory of this project. Then switch into the folder "":
+```text
+nohup python3 FRCM.py > evaluation.txt 2>&1 &
+```
