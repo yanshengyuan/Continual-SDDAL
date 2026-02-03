@@ -67,7 +67,15 @@ rec_result/
 
 # Running SDDAL framework for dataset design
 
-- 1, Quick experiment:
+The entire pipeline of the simulation-driven differentiable active learning framework is organized in a Shell script (SDDAL.sh), which launches and recycles several implemented python modules periodically including:
+
+- `Initializer.py`: responsible for generating initial training samples from Z<-(-1.5, 1.5) by indicating the number of training samples you desire
+- `Trainer.py`: responsible for training the Quantile UNet-T model on the current accumulated training data. After training the Quantile UNet-T will be able to output both predicted phase map and the uncertainty map for it
+- `Scanner.py`: responsible for doing batched gradient descent on the PBF-LB/M beam shaping simulation docking its output to the input of the trained weight-frozen Quantile UNet-T with optimization objective as Quantile uncertainty maximum.
+- `zernike_statistics.py`: responsible for plotting KDE and histogram curves of the Zernike coefficients found out by SDDAL framework to generate the training dataset.
+- `M290_MachineSimu_GPU/M290_full_scene.py`: the differentiable batched Pytorch on-GPU simulation, with Direct Integration as Convolution (DIC) as diffractive propagator, of the PBF-LB/M beam shaping system of the EOS M290 additive manufacturing machine in [EU InShaPe project](https://inshape-horizoneurope.eu/).
+
+- 1, Quick experiment: Execute the following commands in sequence.
   
   Command:
   
@@ -95,4 +103,32 @@ rec_result/
 
   `python3 train_unet.py --data Design_rec --batch_size 2 --gpu 1 --seed 123 --pth_name rec.pth.tar --val_vis_path rec_result --eval`
 
-   - Test on the InShaPe test set (CPU data).
+   - (6) Test on the InShaPe test set (CPU data).
+
+- 2, Official dataset design: Execute the following commands in sequence.
+ 
+  Command:
+  
+  `bash SDDAL.sh rec 0.0002 100 false 1 580 0 5 1 false`
+  
+   - (1) Create 100 initial samples by randomly sampling Zernike coefficients from uniform(-1.5, 1.5).
+ 
+   - (2) Train a Quantile UNet model on the 100 initial samples.
+ 
+   - (3) SDDAL uses the PBF/LB-M beam shaping simulation and trained Quantile UNet-T for uncertainty sampling with batched-sample generation size 5 to generate 5 active learned samples to be added into the 100 initial samples.
+ 
+   - (4) Retrain the Quantile UNet model on the current_size+5 accumulated samples with the identical randomly initialized network weights to the first time training on 100 initial samples.
+ 
+   - (5) Go back to step (3) and repeat step (3) and (4) until the numer of samples generated satisfies your requirements (in this example, it asks for 3000 training samples in total).
+
+  Command:
+
+  `python3 train_unet.py --data Design_rec --epochs 15 --batch_size 2 --gpu 0 --lr 0.0002 --step_size 2 --seed 123 --pth_name rec.pth.tar`
+
+   - (6) Train a randomly initialized UNet-T model on the final 2000-sample training set (GPU data)
+
+  Command:
+
+  `python3 train_unet.py --data Design_rec --batch_size 2 --gpu 1 --seed 123 --pth_name rec.pth.tar --val_vis_path rec_result --eval`
+
+   - (7) Test on the InShaPe test set (CPU data).
