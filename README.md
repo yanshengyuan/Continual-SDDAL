@@ -61,9 +61,9 @@ Design_rec/
 ├── Phi_gt/
 │   ├── img/
 │   └── npy/
-├── I_gt/
-│   ├── img/
-│   └── npy/
+└── I_gt/
+    ├── img/
+    └── npy/
 ```
 
 # Running SDDAL framework for dataset design
