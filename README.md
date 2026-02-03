@@ -208,3 +208,21 @@ Operation:
 
 This command will start a gradient descent fitting on a batch of Zernike coefficients in the simulation to match the batch of generated intensity images as close to target intensity images (from Processed InShaPe dataset) as possible. If the fitting intensity error can converge below 0.1 (while 255 is the maximum intensity value), then we can say that the fitting is successful and the entire simulation is perfectly differentiable with respect to Zernike coefficients.
 
+# Copyright & Citation
+
+© 2026 Shengyuan Yan (ORCID: 0000-0002-7295-1687, Eindhoven University of Technology) & Ting Wu (Eindhoven University of Technology). All rights reserved.
+
+If you use any part of the code or datasets released in or generated from this repository in your research, please cite the following work:
+
+Ting Wu, Shengyuan Yan, *Continual learning with Simulation-Driven Differentiable Active Learning (SDDAL) framework for efficient phase retrieval data generation*, 2026. [GitHub Repository: Continual-SDDAL](https://github.com/yanshengyuan/Continual-SDDAL)
+
+BibTeX format for citation:
+
+```bibtex
+@misc{yan2026sddal,
+  author = {Shengyuan Yan and Ting Wu},
+  title = {Continual learning with Simulation-Driven Differentiable Active Learning (SDDAL) framework for efficient phase retrieval data generation},
+  year = {2026},
+  howpublished = {GitHub repository},
+  url = {https://github.com/yanshengyuan/Continual-SDDAL}
+}
