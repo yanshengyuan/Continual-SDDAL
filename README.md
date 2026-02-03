@@ -20,6 +20,25 @@ Each design folder must share the same internal structure, shown below.
 ```text
 Design_rec/
 ├── latest_uncertainty/
-└── models/
+├── models/
+├── training_set/
+│   ├── intensity/
+│   │   ├── img/
+│   │   └── npy/
+│   └── phase/
+│   │   ├── img/
+│   │   └── npy/
+│   │── zernikes/
+│
+└── test_set/
+    ├── intensity/
+    │   ├── img/
+    │   └── npy/
+    └── phase/
+    │   ├── img/
+    │   └── npy/
+    │
+    │── zernikes/
+```text
 
 # Active dataset design for one of the 6 beam shapes, e.g., RecTophat shape
