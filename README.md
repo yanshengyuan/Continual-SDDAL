@@ -1,4 +1,4 @@
-# Continual-SDDAL
+<img width="2202" height="115" alt="image" src="https://github.com/user-attachments/assets/416e2157-8c42-4b05-be62-fe6b4ffe748e" /># Continual-SDDAL
 The continual learning in Simulation-Driven Differentiable Active Learning framework for efficient data generation
 
 In the initial commit to this Continual-SDDAL repository, an original SDDAL (Simulation-Driven Differentiable Active Learning) framework was pushed into this repository. The following instructures are about how to run different functionalities in the initially committed SDDAL. After the continual researcher is familiar with the initially committed original SDDAL, she will proceed to develop an continual learning scheme inside the SDDAL framework based on the initially pushed SDDAL code base.
@@ -71,5 +71,11 @@ rec_result/
 1, Quick experiment:
 
    (1) Create 1000 initial samples by randomly sampling Zernike coefficients from uniform(-1.5, 1.5).
-   (2) asdfasdfasfd
+   
+   (2) Train a Quantile UNet model on the 1000 initial samples.
 
+   (3) SDDAL uses the PBF/LB-M beam shaping simulation and trained Quantile UNet-T for uncertainty sampling to generate 1000 active learned samples.
+
+   (4) The 1000 initial samples + 1000 active learned samples is the final 2000-sample training set.
+
+   (5) Train a randomly initialized UNet-T model on the final 2000-sample training set (GPU data) then test on the InShaPe test set (CPU data).
