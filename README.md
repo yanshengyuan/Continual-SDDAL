@@ -68,9 +68,14 @@ rec_result/
 # Running SDDAL framework for dataset design
 
 - 1, Quick experiment:
+  
   Command:
+  
   `bash SDDAL.sh rec 0.0002 1000 true 9999 9999 0 9999 9999`
+  
    - (1) Create 1000 initial samples by randomly sampling Zernike coefficients from uniform(-1.5, 1.5).
+
+  Command:
 
   `bash SDDAL.sh rec 9999 9999 false 1 200 0 5 9999 true`
    
@@ -80,4 +85,14 @@ rec_result/
 
    - (4) The 1000 initial samples + 1000 active learned samples is the final 2000-sample training set.
 
-   - (5) Train a randomly initialized UNet-T model on the final 2000-sample training set (GPU data) then test on the InShaPe test set (CPU data).
+  Command:
+
+  `python3 train_unet.py --data Design_rec --epochs 15 --batch_size 2 --gpu 0 --lr 0.0002 --step_size 2 --seed 123 --pth_name rec.pth.tar`
+
+   - (5) Train a randomly initialized UNet-T model on the final 2000-sample training set (GPU data)
+
+  Command:
+
+  `python3 train_unet.py --data Design_rec --batch_size 2 --gpu 1 --seed 123 --pth_name rec.pth.tar --val_vis_path rec_result --eval`
+
+   - Test on the InShaPe test set (CPU data).
