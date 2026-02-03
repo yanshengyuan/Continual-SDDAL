@@ -75,6 +75,11 @@ The entire pipeline of the simulation-driven differentiable active learning fram
 - `zernike_statistics.py`: responsible for plotting KDE and histogram curves of the Zernike coefficients found out by SDDAL framework to generate the training dataset.
 - `M290_MachineSimu_GPU/M290_full_scene.py`: the differentiable batched Pytorch on-GPU simulation, with Direct Integration as Convolution (DIC) as diffractive propagator, of the PBF-LB/M beam shaping system of the EOS M290 additive manufacturing machine in [EU InShaPe project](https://inshape-horizoneurope.eu/).
 
+The external arguments of the shell script SDDAL.sh are:
+```text
+bash Neural_Experimental_Design.sh <beamshape> <lr> <start_round> <end_round> <gpu> <scanner_batch_size> <init_size> <init_only?> <retrain_frequency> <scan_only?>
+```
+
 - 1, Quick experiment: Execute the following commands in sequence.
   
   Command:
@@ -135,23 +140,71 @@ The entire pipeline of the simulation-driven differentiable active learning fram
 
 # Evaluate the performance of the generated training dataset
 
-- 1, Train UNet-T model from scratch on the generated training set. As already indicated in the previous section, for any generated dataset residing in any design folder, you should run the following command to train UNet-T on it:
+- (1), Train UNet-T model from scratch on the generated training set. As already indicated in the previous section, for any generated dataset residing in any design folder, you should run the following command to train UNet-T on it:
 ```text
 python3 train_unet.py --data Design_rec --epochs 15 --batch_size 2 --gpu 0 --lr 0.0002 --step_size 2 --seed 123 --pth_name rec.pth.tar
 ```
-- 2, Test trained UNet-T model on InShaPe (CPU) test set. As already indicated in the previous section, you should run the following command for inference on test set:
+- (2), Test trained UNet-T model on InShaPe (CPU) test set. As already indicated in the previous section, you should run the following command for inference on test set:
 ```text
 python3 train_unet.py --data Design_rec --batch_size 2 --gpu 1 --seed 123 --pth_name rec.pth.tar --val_vis_path rec_result --eval
 ```
-- 3, The predicted phase map, the ground-truth phase map, and the ground-truth intensity are stored in ./rec_result for RecTophat shape for example. Now switch into the result folder:
+- (3), The predicted phase map, the ground-truth phase map, and the ground-truth intensity are stored in ./rec_result for RecTophat shape for example. Now switch into the result folder:
 ```text
 cd ./rec_result/
 ```
-- 4, Inside the result folder you will see a Python script named "FRCM.py", please create a new folder named "diff" in the current directory, and then run the following command then the phase prediction accuracy metrics MAE, SSIM, FRCM will be written in the generated evaluation.txt, you will also have KDE distribution of the metrics across the test set:
+- (4), Inside the result folder you will see a Python script named "FRCM.py", please create a new folder named "diff" in the current directory, and then run the following command then the phase prediction accuracy metrics MAE, SSIM, FRCM will be written in the generated evaluation.txt, you will also have KDE distribution of the metrics across the test set:
 ```text
 nohup python3 FRCM.py > evaluation.txt 2>&1 &
 ```
-- 5, Now switch back to the root directory of this project. Then switch into the folder "":
+- (5), Now switch back to the root directory of this project. Then switch into the folder "Active_Curve":
 ```text
-nohup python3 FRCM.py > evaluation.txt 2>&1 &
+cd ../Active_Curve/
 ```
+- (6), Establish the folders to contain inference results of training UNet-T on different numbers of samples, then run the following command to launch all sample-variant trainings simultaneously:
+```text
+bash TrainSet_curve.sh rec 0.0002
+```
+In the end, you need to do step (4) for all result folders of the launched sample-variant trainings, collect results, and plot the active curve by yourself (shouldn't be too difficult.).
+
+# Sanity Checks for the differentiable batched Pytorch on-GPU simulation, with Direct Integration as Convolution (DIC) as diffractive propagator, of the PBF-LB/M beam shaping system of the EOS M290 additive manufacturing machine.
+
+- 1, Numerical accuracy: Check whether the difference between GPU-simulated (SDDAL) data and CPU-simulated (Processed InShaPe dataset) is small enough to be ignorable
+
+   - (1) Sanity check for Initializer.py
+
+  Operation:
+  
+  `Open the script Initializer.py, uncomment the code block of sanity check to enable the sanity check, and run the following command.`
+
+  Command:
+  ```text
+  python3 Initializer.py --gpu 0 --init_size 100 --vis_path Design_rec
+  ```
+  Then you will find the absolute error maps between GPU-simulated (SDDAL) data and CPU-simulated (Processed InShaPe dataset) in the folder "./rec_sanity_check/"
+
+  - (2) Sanity check for Scanner.py
+
+  Operation:
+  
+  `Open the script Scanner.py, uncomment the code block of sanity check to enable the sanity check, and run the following command.`
+
+  Command:
+  ```text
+  python3 Scanner.py --gpu 0 --batch_size 5 --pth_name QuantUNetT_rec --round_sampling 1 --vis_path Design_rec
+  ```
+  Please mind that you might have to first train a Quantile UNet-T by yourself first to obtain "QuantUNetT_rec.pth.tar". You will find the absolute error maps between GPU-simulated (SDDAL) data and CPU-simulated (Processed InShaPe dataset) in the folder "./rec_sanity_check/"
+
+- 2, Differentiability: Check whether the on-GPU simulation is differntiable with respect to batched Zernike coefficients
+
+Operation:
+  
+  `Switch into the folder "Official_batched_fitting_DIC_fullscene", and run the following command`
+ 
+  Command:
+
+  ```text
+  python3 Gradient_Descent_fitting.py --gpu 0 --batch_size 2 --full_scene True
+  ```
+
+This command will start a gradient descent fitting on a batch of Zernike coefficients in the simulation to match the batch of generated intensity images as close to target intensity images (from Processed InShaPe dataset) as possible. If the fitting intensity error can converge below 0.1 (while 255 is the maximum intensity value), then we can say that the fitting is successful and the entire simulation is perfectly differentiable with respect to Zernike coefficients.
+
