@@ -54,7 +54,7 @@ Design_rec/
 Each result folder must share the same internal structure, shown below:
 
 ```text
-Design_rec/
+rec_result/
 ├── Phi_pred/
 │   ├── img/
 │   └── npy/
