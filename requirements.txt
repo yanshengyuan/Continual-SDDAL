@@ -1,0 +1,59 @@
+blessed @ file:///home/task_176251794346084/conda-bld/blessed_1762518773130/work
+Bottleneck @ file:///home/task_176193794808509/conda-bld/bottleneck_1761937988290/work
+certifi @ file:///home/task_176765898807400/croot/certifi_1767659142395/work/certifi
+contourpy @ file:///croot/contourpy_1732540045555/work
+cycler @ file:///home/task_176606789361081/croot/cycler_1766067914492/work
+filelock @ file:///home/task_176241979569947/conda-bld/filelock_1762419849833/work
+fonttools @ file:///home/task_176544510956002/conda-bld/fonttools_1765445131112/work
+fsspec==2025.12.0
+gpustat @ file:///croot/gpustat_1701888826609/work
+ImageIO @ file:///home/task_176295407969799/conda-bld/imageio_1762954094070/work
+Jinja2==3.1.6
+kiwisolver @ file:///home/task_176415926973141/conda-bld/kiwisolver_1764159298569/work
+lazy_loader @ file:///croot/lazy_loader_1718176737906/work
+LightPipes==2.1.5
+MarkupSafe==2.1.5
+matplotlib==3.10.8
+mpmath==1.3.0
+natsort @ file:///croot/natsort_1753352436032/work
+networkx @ file:///croot/networkx_1737039604450/work
+numexpr @ file:///home/task_176216555911359/conda-bld/numexpr_1762165569223/work
+numpy @ file:///home/task_176157873442292/conda-bld/numpy_and_numpy_base_1761579342817/work/dist/numpy-2.2.5-cp310-cp310-linux_x86_64.whl#sha256=4f111e445ad2d8123363b1599c58ba5214fd56796d9ecdf9b3402f997cfda2ea
+nvidia-cublas-cu11==11.11.3.6
+nvidia-cuda-cupti-cu11==11.8.87
+nvidia-cuda-nvrtc-cu11==11.8.89
+nvidia-cuda-runtime-cu11==11.8.89
+nvidia-cudnn-cu11==9.1.0.70
+nvidia-cufft-cu11==10.9.0.58
+nvidia-curand-cu11==10.3.0.86
+nvidia-cusolver-cu11==11.4.1.48
+nvidia-cusparse-cu11==11.7.5.86
+nvidia-ml-py @ file:///home/task_176311898187137/conda-bld/nvidia-ml-py_1763119027412/work
+nvidia-nccl-cu11==2.21.5
+nvidia-nvtx-cu11==11.8.86
+packaging @ file:///home/task_176104877067765/conda-bld/packaging_1761049113113/work
+pandas @ file:///home/task_176233228161209/conda-bld/pandas_1762332325727/work/dist/pandas-2.3.3-cp310-cp310-linux_x86_64.whl#sha256=cd4241f338dbf9922b2bc5a62ff6267574e607e9e9ea8b5efbba07b037c96f8f
+pillow==12.0.0
+psutil @ file:///home/task_176189642285093/conda-bld/psutil_1761896463775/work
+pyparsing @ file:///home/task_176397361890982/conda-bld/pyparsing_1763973787669/work
+PyQt5==5.15.11
+PyQt5_sip @ file:///home/task_176400906222455/conda-bld/pyqt-split_1764009076383/work/pyqt_sip
+python-dateutil @ file:///croot/python-dateutil_1716495738603/work
+pytz @ file:///home/task_177304300759431/croot/pytz_1773043041250/work
+PyYAML @ file:///home/task_176346546342115/conda-bld/pyyaml_1763465494987/work
+scikit-image @ file:///home/task_176477234103261/conda-bld/scikit-image_1764772822609/work
+scipy @ file:///home/task_175922202585198/conda-bld/scipy_1759222074702/work/dist/scipy-1.15.3-cp310-cp310-linux_x86_64.whl#sha256=b8f5c48ae00291fce22e3fd4688c47b9e8c38462319d0dd1e8b5b4d7240368ec
+seaborn @ file:///croot/seaborn_1749110291192/work
+sip @ file:///croot/sip_1756223371714/work
+six @ file:///croot/six_1744271502820/work
+sympy==1.14.0
+tifffile @ file:///croot/tifffile_1741164537642/work
+tomli @ file:///home/task_176829635583515/croot/tomli_1768296437642/work
+torch==2.7.1+cu118
+torchaudio==2.7.1+cu118
+torchvision==0.22.1+cu118
+tornado @ file:///home/task_176599246475085/croot/tornado_1765992643397/work
+triton==3.3.1
+typing_extensions==4.15.0
+tzdata @ file:///home/task_176829656558347/croot/python-tzdata_1768296637279/work
+wcwidth @ file:///home/task_176777874962197/croot/wcwidth_1767779156182/work

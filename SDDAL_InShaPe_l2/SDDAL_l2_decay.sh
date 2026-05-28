@@ -1,0 +1,391 @@
+#!/bin/bash
+
+# ==========================================
+# SDDAL_l2_decay.sh — Replay + L2 anchor with linearly decaying beta
+#
+# Identical to SDDAL_l2.sh except:
+#   - exp_path suffix: _l2_decay  (vs _l2 for fixed beta)
+#   - L2Trainer.py receives --round, --total_rounds, and --decay_start_round
+#     so beta is fixed until decay_start_round, then decays linearly to beta_min
+#   - New arg 16: beta_min (default 0.0)
+#   - New arg 17: decay_start_round (default 100)
+#
+# Decay formula (inside L2Trainer.py):
+#   round <= decay_start_round : beta_eff = beta_start
+#   round >  decay_start_round : t = (round - decay_start_round) / (total_rounds - decay_start_round)
+#                                beta_eff = beta_start * (1-t) + beta_min * t
+#
+# Usage:
+#   bash SDDAL_l2_decay.sh <beamshape> <lr> <initial_size> <fix_init?> <init_only?> <start_round> <end_round> <gpu> <scanner_batch_size> <retrain_frequency> <scan_only?> <seed> <init_seed> <buffer_size> <beta_start> <beta_min> <decay_start_round>
+#
+# ==========================================
+# Examples:
+#
+# 1) Decay from round 100  -> writes to Design_rec_1_l2_decay/
+#    bash SDDAL_l2_decay.sh rec 0.0002 100 true false 1 200 0 5 1 false 1 123 300 0.01 0.001 100
+#
+# 2) Resume at round 101
+#    bash SDDAL_l2_decay.sh rec 0.0002 100 true false 101 200 0 5 1 false 1 123 300 0.01 0.001 100
+#
+# ==========================================
+
+beamshape=${1:-chair}
+lr=${2:-0.0002}
+init_size=${3:-100}
+fix_init=${4:-true}
+init_only=${5:-false}
+start_round=${6:-1}
+end_round=${7:-200}
+gpu=${8:-0}
+scanner_batch_size=${9:-5}
+retrain_freq=${10:-1}
+scan_only=${11:-false}
+seed=${12:-1}
+init_seed=${13:-123}
+buffer_size=${14:-300}
+beta_start=${15:-0.01}
+beta_min=${16:-0.001}
+decay_start_round=${17:-100}
+
+trainer_batch_size=2
+base_path="Design_${beamshape}"
+exp_path="Design_${beamshape}_${seed}_l2_decay"
+
+buffer_path="${exp_path}/models/replay_buffer.pkl"
+
+# --- GPU memory waiting config for Scanner.py ---
+required_free_mem_mb=5200
+check_interval_sec=30
+
+echo "========================================="
+echo " SDDAL L2 Decay Pipeline (L2Trainer + decaying beta)"
+echo " Beamshape            : ${beamshape}"
+echo " Learning rate        : ${lr}"
+echo " Rounds               : ${start_round} → ${end_round}"
+echo " GPU                  : ${gpu}"
+echo " Trainer batch size   : ${trainer_batch_size}"
+echo " Scanner batch size   : ${scanner_batch_size}"
+echo " Initial set size     : ${init_size}"
+echo " Use fixed initial set: ${fix_init}"
+echo " Retrain frequency    : ${retrain_freq}"
+echo " Scan only?           : ${scan_only}"
+echo " Init only?           : ${init_only}"
+echo " Master seed          : ${seed}"
+echo " Initial set seed     : ${init_seed}"
+echo " Base path            : ${base_path}"
+echo " Experiment path      : ${exp_path}"
+echo " Replay buffer size   : ${buffer_size}"
+echo " Buffer path          : ${buffer_path}"
+echo " L2 beta_start        : ${beta_start}"
+echo " L2 beta_min          : ${beta_min}"
+echo " L2 decay_start_round : ${decay_start_round}"
+echo " Required free GPU memory before Scanner.py : ${required_free_mem_mb} MB"
+echo " GPU memory check interval                 : ${check_interval_sec} s"
+echo "========================================="
+
+# ---------------------------------------------------------
+# Wait until the target GPU has enough free memory
+# ---------------------------------------------------------
+wait_for_gpu_memory() {
+    local gpu_id="$1"
+    local required_mb="$2"
+    local interval_sec="$3"
+
+    echo "-----------------------------------------"
+    echo " Checking free GPU memory before Scanner.py"
+    echo " GPU index          : ${gpu_id}"
+    echo " Required free mem  : ${required_mb} MB"
+    echo "-----------------------------------------"
+
+    while true; do
+        if ! command -v nvidia-smi >/dev/null 2>&1; then
+            echo "ERROR: nvidia-smi not found. Cannot check GPU memory."
+            exit 1
+        fi
+
+        free_mem=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "${gpu_id}" 2>/dev/null | head -n 1 | tr -d '[:space:]')
+
+        if ! [[ "${free_mem}" =~ ^[0-9]+$ ]]; then
+            echo "$(date '+%F %T')  WARNING: Failed to read free GPU memory on GPU ${gpu_id}. Retry in ${interval_sec}s..."
+            sleep "${interval_sec}"
+            continue
+        fi
+
+        echo "$(date '+%F %T')  GPU ${gpu_id} free memory: ${free_mem} MB"
+
+        if [ "${free_mem}" -ge "${required_mb}" ]; then
+            echo "$(date '+%F %T')  Enough free memory detected. Proceeding to run Scanner.py."
+            break
+        else
+            echo "$(date '+%F %T')  Not enough free memory (< ${required_mb} MB). Waiting ${interval_sec}s..."
+            sleep "${interval_sec}"
+        fi
+    done
+}
+
+# --- Create experiment folder from base folder if needed ---
+echo "-----------------------------------------"
+echo " Checking experiment folder: ${exp_path}"
+echo "-----------------------------------------"
+
+if [ -d "${exp_path}" ]; then
+    echo "  Folder exists -> skip copying."
+else
+    echo "  Folder does NOT exist -> creating from ${base_path}"
+    if [ -d "${base_path}" ]; then
+        cp -r "${base_path}" "${exp_path}"
+        echo "  Copied ${base_path} -> ${exp_path}"
+    else
+        echo "  ERROR: Base folder ${base_path} does not exist!"
+        exit 1
+    fi
+fi
+
+echo "-----------------------------------------"
+
+# =========================================================
+# Case 1: init_only=true
+# =========================================================
+if [ "${init_only}" = true ]; then
+    echo "------------------------------"
+    echo "  init_only=true"
+    echo "------------------------------"
+
+    if [ "${fix_init}" = true ]; then
+        echo "  fix_init=true -> Using external fixed initial set"
+
+        if [ ! -d "../initial_sets/${beamshape}" ]; then
+            echo "  ERROR: Fixed initial set folder does not exist:"
+            echo "         ../initial_sets/${beamshape}"
+            exit 1
+        fi
+
+        mkdir -p "${exp_path}/training_set"
+        rm -rf "${exp_path}/training_set/"*
+        cp -r ../initial_sets/${beamshape}/* "${exp_path}/training_set/"
+		mkdir -p "${exp_path}/training_set/init_zernikes"
+		mkdir -p "${exp_path}/training_set/zernikes"
+
+        echo "  Fixed initial set copied."
+    else
+        echo "  Running Initializer.py..."
+        python3 Initializer.py \
+            --beamshape ${beamshape} \
+            --gpu ${gpu} \
+            --init_size ${init_size} \
+            --vis_path "${exp_path}" \
+            --rand_seed ${init_seed}
+    fi
+
+    echo "  Training model on initial set (cold start via Trainer.py)..."
+    t0=$(date +%s)
+    python3 Trainer.py \
+        --train_data "${exp_path}" \
+        --epochs 15 \
+        --batch_size ${trainer_batch_size} \
+        --gpu ${gpu} \
+        --lr ${lr} \
+        --step_size 2 \
+        --seed 123 \
+        --pth_name "${exp_path}/models/QuantUNetT_${beamshape}"
+    t1=$(date +%s)
+    echo "  init_only trainer time: $(( t1 - t0 )) s"
+
+    echo "------------------------------"
+    echo "  init_only pipeline finished."
+    echo "------------------------------"
+    exit 0
+fi
+
+# =========================================================
+# Case 2: normal mode (init_only=false)
+# =========================================================
+if [ "${start_round}" -gt 1 ]; then
+    echo "------------------------------"
+    echo "  Resume mode detected (start_round=${start_round})"
+    echo "  Existing training_set will be kept unchanged."
+    echo "------------------------------"
+
+elif [ "${scan_only}" = true ]; then
+    echo "------------------------------"
+    echo "  scan_only=true -> Skipping initialization at round 1"
+    echo "------------------------------"
+
+else
+    if [ "${fix_init}" = true ]; then
+        echo "------------------------------"
+        echo "  start_round=1 and fix_init=true"
+        echo "  Using external fixed initial set instead of Initializer.py"
+        echo "------------------------------"
+
+        if [ ! -d "../initial_sets/${beamshape}" ]; then
+            echo "  ERROR: Fixed initial set folder does not exist:"
+            echo "         ../initial_sets/${beamshape}"
+            exit 1
+        fi
+
+        mkdir -p "${exp_path}/training_set"
+        rm -rf "${exp_path}/training_set/"*
+        cp -r ../initial_sets/${beamshape}/* "${exp_path}/training_set/"
+		mkdir -p "${exp_path}/training_set/init_zernikes"
+		mkdir -p "${exp_path}/training_set/zernikes"
+
+        echo "  Fixed initial set copied."
+    else
+        echo "------------------------------"
+        echo "  start_round=1 and fix_init=false"
+        echo "  Running Initializer.py"
+        echo "------------------------------"
+
+        python3 Initializer.py \
+            --beamshape ${beamshape} \
+            --gpu ${gpu} \
+            --init_size ${init_size} \
+            --vis_path "${exp_path}" \
+            --rand_seed ${init_seed}
+    fi
+fi
+
+# =========================================================
+# Timing accumulators
+# =========================================================
+cumul_trainer_s=0
+cumul_scanner_s=0
+loop_start=$(date +%s)
+
+# =========================================================
+# Initial cold-start training — only at round 1
+# =========================================================
+if [ "${start_round}" -eq 1 ] && [ "${scan_only}" = false ]; then
+    echo "------------------------------"
+    echo "  Initial cold-start training with Trainer.py (15 epochs)"
+    echo "------------------------------"
+    t0=$(date +%s)
+    python3 Trainer.py \
+        --train_data "${exp_path}" \
+        --epochs 15 \
+        --batch_size ${trainer_batch_size} \
+        --gpu ${gpu} \
+        --lr ${lr} \
+        --step_size 2 \
+        --seed 123 \
+        --pth_name "${exp_path}/models/QuantUNetT_${beamshape}"
+    t1=$(date +%s)
+    cumul_trainer_s=$(( cumul_trainer_s + t1 - t0 ))
+    echo "  Initial trainer time: $(( t1 - t0 )) s  |  cumul_trainer_s: ${cumul_trainer_s} s"
+
+    echo "  Seeding replay buffer: n_trained=${init_size} ..."
+    python3 -c "
+import sys; sys.path.insert(0, '.')
+from replay_buffer import ReplayBuffer
+import os
+buf_dir = os.path.dirname('${buffer_path}')
+if buf_dir:
+    os.makedirs(buf_dir, exist_ok=True)
+buf = ReplayBuffer(max_size=${buffer_size})
+buf.n_trained = ${init_size}
+buf.save('${buffer_path}')
+print(f'[replay_buffer] n_trained={buf.n_trained}, max_size={buf.max_size} -> ${buffer_path}')
+"
+fi
+
+# =========================================================
+# Main round loop
+# =========================================================
+for ((round_sampling=${start_round}; round_sampling<=${end_round}; round_sampling++))
+do
+    echo "------------------------------"
+    echo "  Starting Round ${round_sampling}"
+    echo "------------------------------"
+
+    scanner_init_seed=$(( seed * 1000000 + round_sampling * 2 ))
+    train_seed=$(( seed * 1000000 + round_sampling * 2 + 3 ))
+
+    echo "  Scanner init_seed   : ${scanner_init_seed}"
+    echo "  Trainer seed        : ${train_seed}"
+
+    this_round_trainer_s=0
+    if [ "${scan_only}" = false ]; then
+        if (( (round_sampling-1) % retrain_freq == 0 )); then
+            echo "------------------------------"
+            echo "  L2Trainer (decay) at round ${round_sampling}/${end_round}"
+            echo "  beta_eff = ${beta_start} * (1 - (${round_sampling}-1)/(${end_round}-1)) + ${beta_min} * ..."
+            echo "------------------------------"
+
+            t0=$(date +%s)
+            python3 L2Trainer.py \
+                --train_data  "${exp_path}" \
+                --pth_name    "${exp_path}/models/QuantUNetT_${beamshape}" \
+                --resume      "${exp_path}/models/QuantUNetT_${beamshape}" \
+                --buffer_path "${buffer_path}" \
+                --buffer_size ${buffer_size} \
+                --beta        ${beta_start} \
+                --beta_min    ${beta_min} \
+                --round       ${round_sampling} \
+                --total_rounds ${end_round} \
+                --decay_start_round ${decay_start_round} \
+                --epochs      10 \
+                --batch_size  ${trainer_batch_size} \
+                --gpu         ${gpu} \
+                --lr          ${lr} \
+                --step_size   2 \
+                --seed        123
+            t1=$(date +%s)
+            this_round_trainer_s=$(( t1 - t0 ))
+            cumul_trainer_s=$(( cumul_trainer_s + this_round_trainer_s ))
+            echo "  Round ${round_sampling} trainer time : ${this_round_trainer_s} s  |  cumul_trainer_s : ${cumul_trainer_s} s"
+        else
+            echo "  Skipping training at this round (waiting for next frequency point)"
+        fi
+    else
+        echo "  scan_only=true -> training skipped."
+    fi
+
+    # Wait until GPU has enough free memory before running Scanner.py
+    wait_for_gpu_memory "${gpu}" "${required_free_mem_mb}" "${check_interval_sec}"
+
+    t0=$(date +%s)
+    python3 Scanner.py \
+        --beamshape ${beamshape} \
+        --gpu ${gpu} \
+        --batch_size ${scanner_batch_size} \
+        --pth_name QuantUNetT_${beamshape} \
+        --round_sampling ${round_sampling} \
+        --vis_path "${exp_path}" \
+        --init_seed ${scanner_init_seed}
+    t1=$(date +%s)
+    this_round_scanner_s=$(( t1 - t0 ))
+    cumul_scanner_s=$(( cumul_scanner_s + this_round_scanner_s ))
+    echo "  Round ${round_sampling} scanner time : ${this_round_scanner_s} s  |  cumul_scanner_s : ${cumul_scanner_s} s"
+
+    # ---------------------------------------------------------
+    # Append per-round timing to CSV
+    # ---------------------------------------------------------
+    dataset_size=$(( init_size + round_sampling * scanner_batch_size ))
+    wall_clock_s=$(( $(date +%s) - loop_start ))
+    timing_log="${exp_path}/timing_log.csv"
+    if [ ! -f "${timing_log}" ]; then
+        echo "round,dataset_size,wall_clock_s,cumul_trainer_s,per_round_trainer_s,cumul_scanner_s,per_round_scanner_s" > "${timing_log}"
+    fi
+    echo "${round_sampling},${dataset_size},${wall_clock_s},${cumul_trainer_s},${this_round_trainer_s},${cumul_scanner_s},${this_round_scanner_s}" >> "${timing_log}"
+
+done
+
+# =========================================================
+# Zernike coefficients statistics
+# =========================================================
+echo "========================================="
+echo "   Zernike coefficient statistics in progress..."
+echo "========================================="
+python3 zernike_statistics.py --beamshape ${beamshape} --init_size ${init_size}
+
+# =========================================================
+# Final timing summary
+# =========================================================
+wall_clock_s=$(( $(date +%s) - loop_start ))
+echo "========================================="
+echo "   SDDAL L2 Decay Pipeline Completed Successfully!"
+echo "   wall_clock_s    : ${wall_clock_s} s"
+echo "   cumul_trainer_s : ${cumul_trainer_s} s"
+echo "   cumul_scanner_s : ${cumul_scanner_s} s"
+echo "========================================="
