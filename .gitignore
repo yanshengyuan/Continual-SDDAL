@@ -9,5 +9,6 @@ statistics_sddal_single.py
 !requirements.txt
 !SDDAL_InShaPe_cl/Design_rec/
 !SDDAL_InShaPe_Baseline/Design_rec/
+!evaluation.txt
 
 *.csv
